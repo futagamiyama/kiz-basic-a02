@@ -7,6 +7,30 @@ export const CONSTANTS: Record<string, number> = {
 	pi: Math.PI
 };
 
+// Standard normal CDF (Abramowitz & Stegun 7.1.26, accurate to ~7.5e-8)
+function normalCDF(z: number): number {
+	const sign = z >= 0 ? 1 : -1;
+	const x = Math.abs(z) * Math.SQRT1_2;
+	const t = 1 / (1 + 0.3275911 * x);
+	const poly =
+		((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t +
+			0.254829592) *
+		t;
+	const erfAbs = 1 - poly * Math.exp(-x * x);
+	return 0.5 * (1 + sign * erfAbs);
+}
+
+// Inverse standard normal CDF (Hastings, accurate to ~4.5e-4)
+function normalInverseCDF(p: number): number {
+	if (p <= 0 || p >= 1) return NaN;
+	const sign = p >= 0.5 ? 1 : -1;
+	const q = Math.min(p, 1 - p);
+	const t = Math.sqrt(-2 * Math.log(q));
+	const num = 2.515517 + 0.802853 * t + 0.010328 * t * t;
+	const den = 1 + 1.432788 * t + 0.189269 * t * t + 0.001308 * t * t * t;
+	return sign * (t - num / den);
+}
+
 export const FUNCTIONS: Record<
 	string,
 	{ arity: number | number[]; fn: (args: number[]) => number }
@@ -19,7 +43,13 @@ export const FUNCTIONS: Record<
 	log: {
 		arity: [1, 2],
 		fn: (a) => (a.length === 1 ? Math.log10(a[0]) : Math.log(a[1]) / Math.log(a[0]))
-	}
+	},
+	// 偏差値 from upper rank (fraction 0..1), assuming normal distribution
+	// e.g. hensa(3/100) ≈ 68.8 (top 3% → 偏差値 ≈ 68.8)
+	hensa: { arity: 1, fn: (a) => 50 + 10 * normalInverseCDF(1 - a[0]) },
+	// upper rank (fraction 0..1) from 偏差値
+	// e.g. jyun(70) ≈ 0.023 (偏差値70 → 上位 2.3%)
+	jyun: { arity: 1, fn: (a) => 1 - normalCDF((a[0] - 50) / 10) }
 };
 
 export interface StepResult {
